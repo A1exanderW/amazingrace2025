@@ -1,0 +1,182 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>{{ team }} Uploads</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+  <style>
+    table { width: 100%; }
+    td, th { vertical-align: middle !important; }
+    /* Removed fixed overlay watermark for better readability */
+    .result-banner {
+      border: 2px dashed #48c774;
+      background: rgba(72,199,116,0.08);
+      padding: 20px;
+      border-radius: 10px;
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .result-banner .title { margin-bottom: 0.25rem; }
+  </style>
+</head>
+<body class="has-background-light">
+<section class="section">
+  <div class="container">
+  <h1 class="title">{{ team }} File Upload</h1>
+  <p class="subtitle">Upload files for the race. Allowed types: txt, csv, xlsx, xls, pdf, png, jpg, jpeg, gif, tif, tiff, mp4, mov, avi, mkv, webm, mpeg, mpg.</p>
+
+    <a href="{{ url_for('index') }}" class="button is-small">Logout</a>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="notification is-{{ 'danger' if category == 'error' else category }} mt-4">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="" enctype="multipart/form-data" class="box mt-4" id="upload-form">
+      <div class="field has-addons">
+        <div class="control is-expanded">
+          <input class="input" type="file" name="file" id="file-input" required accept=".txt,.csv,.xlsx,.xls,.pdf,.png,.jpg,.jpeg,.gif,.tif,.tiff,.mp4,.mov,.avi,.mkv,.webm,.mpeg,.mpg">
+        </div>
+        <div class="control">
+          <button class="button is-link" type="submit" id="upload-btn">Upload</button>
+        </div>
+      </div>
+      <div class="field" id="progress-wrap" style="display:none">
+        <progress class="progress is-link" id="upload-progress" value="0" max="100">0%</progress>
+        <p class="is-size-7 has-text-grey" id="upload-status"></p>
+      </div>
+    </form>
+
+    <h2 class="title is-4">Uploaded Files</h2>
+    {% if files %}
+      <table class="table is-striped is-fullwidth">
+        <thead>
+          <tr>
+            <th>Name</th>
+            <th>Size (KB)</th>
+            <th>Last Modified</th>
+            <th>Download</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody>
+        {% for f in files %}
+          <tr>
+            <td>{{ f.name }}</td>
+            <td>{{ '%.1f' | format(f.size / 1024) }}</td>
+            <td>{{ f.modified.strftime('%Y-%m-%d %H:%M:%S') }}</td>
+            <td><a class="button is-small" href="{{ url_for('download_file', team=team, filename=f.name) }}">Download</a></td>
+            <td>
+              {% if f.name != 'final_result.txt' %}
+              <form method="post" action="{{ url_for('delete_file', team=team, filename=f.name) }}" style="display:inline;" onsubmit="return confirm('Delete {{ f.name }}?');">
+                <button class="button is-small is-danger" type="submit">X</button>
+              </form>
+              {% else %}-{% endif %}
+            </td>
+          </tr>
+        {% endfor %}
+        </tbody>
+      </table>
+    {% else %}
+      <p>No files uploaded yet.</p>
+    {% endif %}
+
+    {% if final_result %}
+      <div class="result-banner">
+        <p class="title is-3 has-text-success">Final race position: {{ final_result }}</p>
+      </div>
+    {% endif %}
+
+    <div class="box mt-5">
+      <h2 class="title is-5">Final Result</h2>
+      <form method="post" action="">
+        <div class="field">
+          <div class="control">
+            <input class="input has-background-white" type="text" name="final_result_text" placeholder="Enter final result" value="{{ final_result }}" autocomplete="off">
+          </div>
+        </div>
+        <div class="field">
+          <label class="label is-size-7">Admin password</label>
+          <div class="control">
+            <input class="input" type="password" name="final_result_password" placeholder="Enter admin password" autocomplete="off">
+          </div>
+          <p class="help is-size-7">Only admins can update the final result.</p>
+        </div>
+        <div class="field is-grouped">
+          <div class="control">
+            <button class="button is-primary" type="submit">Save Result</button>
+          </div>
+          {% if final_result %}
+          <div class="control">
+            <span class="tag is-info is-light">Current: {{ final_result }}</span>
+          </div>
+          {% endif %}
+        </div>
+      </form>
+      <p class="is-size-7 has-text-grey">Persisted on Google Drive as final_result.txt.</p>
+    </div>
+  </div>
+</section>
+<script>
+  (function() {
+    const form = document.getElementById('upload-form');
+    if (!form) return;
+    const fileInput = document.getElementById('file-input');
+    const btn = document.getElementById('upload-btn');
+    const wrap = document.getElementById('progress-wrap');
+    const bar = document.getElementById('upload-progress');
+    const status = document.getElementById('upload-status');
+
+    form.addEventListener('submit', function(e) {
+      e.preventDefault();
+      if (!fileInput.files || fileInput.files.length === 0) {
+        alert('Please choose a file.');
+        return;
+      }
+
+      const fd = new FormData();
+      fd.append('file', fileInput.files[0]);
+
+      btn.disabled = true;
+      fileInput.disabled = true;
+      wrap.style.display = '';
+      bar.value = 0; bar.textContent = '0%';
+      status.textContent = 'Starting upload…';
+
+      const xhr = new XMLHttpRequest();
+      xhr.open('POST', form.getAttribute('action') || window.location.href, true);
+
+      xhr.upload.onprogress = function(evt) {
+        if (evt.lengthComputable) {
+          const pct = Math.max(0, Math.min(100, Math.round((evt.loaded / evt.total) * 100)));
+          bar.value = pct;
+          bar.textContent = pct + '%';
+          status.textContent = `Uploading ${fileInput.files[0].name}… ${pct}%`;
+        } else {
+          status.textContent = `Uploading ${fileInput.files[0].name}…`;
+        }
+      };
+
+      xhr.onload = function() {
+        // Reload to update file list and show any flash messages
+        window.location.reload();
+      };
+
+      xhr.onerror = function() {
+        status.textContent = 'Upload failed. Please try again.';
+        btn.disabled = false;
+        fileInput.disabled = false;
+      };
+
+      xhr.send(fd);
+    });
+  })();
+</script>
+</body>
+</html>

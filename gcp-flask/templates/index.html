@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Race Team Upload Portal</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bulma@0.9.4/css/bulma.min.css">
+</head>
+<body class="has-background-light">
+<div class="has-background-primary has-text-centered has-text-white p-3" style="font-size:1.75rem;font-weight:700;letter-spacing:1px;">
+  Amazing Race 2025
+</div>
+<section class="section">
+  <div class="container">
+    <h1 class="title">Team File Upload</h1>
+    <p class="subtitle">Enter your team name and password to proceed.</p>
+
+    {% with messages = get_flashed_messages(with_categories=true) %}
+      {% if messages %}
+        {% for category, message in messages %}
+          <div class="notification is-{{ 'danger' if category == 'error' else category }}">
+            {{ message }}
+          </div>
+        {% endfor %}
+      {% endif %}
+    {% endwith %}
+
+    <form method="post" action="{{ url_for('login') }}">
+      <div class="field">
+        <label class="label">Team</label>
+        <div class="control">
+          <div class="select">
+            <select name="team" required>
+              <option value="" disabled selected>Select team</option>
+              <option value="team1">team1</option>
+              <option value="team2">team2</option>
+              <option value="team3">team3</option>
+              <option value="team4">team4</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label">Password</label>
+        <div class="control">
+          <input class="input" type="password" name="password" required>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="control">
+          <button class="button is-link" type="submit">Login</button>
+        </div>
+      </div>
+    </form>
+  </div>
+</section>
+</body>
+</html>
